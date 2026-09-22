@@ -13,6 +13,19 @@ from sklearn.model_selection import train_test_split
 print("Python:", sys.version.split()[0])
 print("MediaPipe:", mp.__version__)
 print("NumPy:", np.__version__)
+# you really can ignore most of this part, it is just searching for input.
+# it is irrelevant if you don't use kaggle.
+# !! here's a commented not kaggle version of it:
+# DATASET_ROOT = Path("source")
+# IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"} 
+# whatever format you use
+# SPLITS = ["train", "valid", "test"]
+# for split in SPLITS:
+#     split_dir = DATASET_ROOT / split
+#     images = [p for p in split_dir.iterdir()
+#               if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
+# print(f"{split:>5}: {len(images):4d} images")
+# there'll be a comment at the end of what this replacement covers
 
 KAGGLE_INPUT = Path("/kaggle/input")
 print("Kaggle input directories:")
@@ -56,18 +69,14 @@ for split in SPLITS:
     for p in images[:5]:
         print("       ", p.name)
     print()
+# that's the entire Kaggle dataset-discovery part the local snippet replaces.
 
 CLASS_NAMES = ["Hello", "IloveYou", "No", "Please", "Thanks", "Yes"]
 
 
 def filename_to_class(filename: str) -> str:
-    """Infer the six-class label from the filename.
-
-    The dataset does NOT use class directories.
-    Labels are encoded in filenames.
-    """
     name = Path(filename).stem.lower()
-    normalized = name.replace("-", "").replace("_", "").replace(" ", "")
+    normalized = name.replace("-", "").replace("_", "").replace(" ", "") # clean up ze mess
     if normalized.startswith("hello"):
         return "Hello"
     if normalized.startswith("iloveyou"):
@@ -96,13 +105,13 @@ examples = [
 for example in examples:
     print(f"{example:60} -> {filename_to_class(example)}")
 
-PROJECT_ROOT = Path("/kaggle/working/isl_glasses")
+PROJECT_ROOT = Path("/kaggle/working/isl_glasses") # this will change depending on your project root
 MODEL_DIR = PROJECT_ROOT / "models"
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
 MODEL_PATH = MODEL_DIR / "hand_landmarker.task"
 MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
 
-if not MODEL_PATH.exists():
+if not MODEL_PATH.exists(): 
     print("Downloading Hand Landmarker model...")
     urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
     print("Download complete.")
@@ -114,32 +123,25 @@ print(f"Model size: {MODEL_PATH.stat().st_size / (1024**2):.2f} MB")
 
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
-
+# initializing mediapipe hand landmarker. meddle as thou wishest
 base_options = python.BaseOptions(model_asset_path=str(MODEL_PATH))
 options = vision.HandLandmarkerOptions(
     base_options=base_options,
-    running_mode=vision.RunningMode.IMAGE,
+    running_mode=vision.RunningMode.IMAGE, 
     num_hands=1,
     min_hand_detection_confidence=0.5,
     min_hand_presence_confidence=0.5,
     min_tracking_confidence=0.5,
 )
 hand_landmarker = vision.HandLandmarker.create_from_options(options)
-
-print("Hand Landmarker initialized.")
-print("Mode: IMAGE")
-print("Maximum hands: 1")
-print("Expected landmarks per hand: 21")
-
+# really optional safety check.
 test_images = [p for p in (DATASET_ROOT / "test").iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
 if not test_images:
     raise FileNotFoundError("No test images found.")
-
 TEST_IMAGE = test_images[0]
 print("Smoke-test image:")
 print(TEST_IMAGE)
 print("Class:", filename_to_class(TEST_IMAGE.name))
-
 
 def detect_hand(image_path: Path):
     image = Image.open(image_path).convert("RGB")
@@ -164,7 +166,7 @@ def detect_hand(image_path: Path):
 
 
 result, landmarks = detect_hand(TEST_IMAGE)
-
+# get all the data ready. what's annotated and not, what is the test split, etc etc
 rows = []
 for split in ["train", "valid", "test"]:
     split_dir = DATASET_ROOT / split
