@@ -405,15 +405,9 @@ hand_landmarker = (
 )
 
 # esp32 connectionS
-ESP32_STREAM = "http://10.77.145.235:81/stream"
-
 cap = cv2.VideoCapture(
-    ESP32_STREAM
-)
-
-cap.set(
-    cv2.CAP_PROP_BUFFERSIZE,
-    1
+    0,
+    cv2.CAP_DSHOW
 )
 
 if not cap.isOpened():
