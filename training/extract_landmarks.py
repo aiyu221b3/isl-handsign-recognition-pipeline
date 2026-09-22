@@ -8,7 +8,7 @@ from PIL import Image
 import mediapipe as mp
 
 LANDMARK_ROOT = PROJECT_ROOT / 'data' / 'landmarks'
-
+# directory & setup stuff
 for split in ['train', 'val', 'test']:
     (LANDMARK_ROOT / split).mkdir(parents=True, exist_ok=True)
 coco_lookup = {}
@@ -16,7 +16,9 @@ for source_split in ['train', 'valid', 'test']:
     json_path = DATASET_ROOT / source_split / '_annotations.coco.json'
     with open(json_path, 'r') as f:
         coco = json.load(f)
+    # file name -> image object
     image_lookup = {image['file_name']: image for image in coco['images']}
+    # image id -> list of annotation obj
     annotation_lookup = {}
     for annotation in coco['annotations']:
         annotation_lookup.setdefault(annotation['image_id'], []).append(annotation)
@@ -43,12 +45,13 @@ def find_coco_annotation(image_path: Path, split: str):
     if not annotations:
         return None
     return annotations[0]
-
+# get mediapipe to do what is needed
 def mediapipe_detect(image_np: np.ndarray):
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_np)
     return hand_landmarker.detect(mp_image)
 
 def landmarks_from_result(result):
+    """get landmarks c:"""
     if len(result.hand_landmarks) == 0:
         return None
     hand = result.hand_landmarks[0]
@@ -58,31 +61,32 @@ def landmarks_from_result(result):
     return landmarks
 
 def extract_landmarks(image_path: Path):
+    """most important function. this is the arch. try finding ze hand with mediapipe, if cannot, use the coco bound. get landmarks."""
     try:
         with Image.open(image_path) as image:
             image = image.convert('RGB')
             image_width, image_height = image.size
             image_np = np.asarray(image, dtype=np.uint8)
-        result = mediapipe_detect(image_np)
+        result = mediapipe_detect(image_np) # cuz mediapipe needs to convert np array to its req format
         landmarks = landmarks_from_result(result)
-        if landmarks is not None:
+        if landmarks is not None: # then we're cool. ^ ^
             handedness = None
             handedness_score = None
-            if result.handedness and len(result.handedness[0]) > 0:
+            if result.handedness and len(result.handedness[0]) > 0: # in case of trouble
                 category = result.handedness[0][0]
                 handedness = category.category_name
                 handedness_score = float(category.score)
             return ({'detection_success': True, 'extraction_method': 'full_image', 'handedness': handedness, 'handedness_score': handedness_score, 'image_width': image_width, 'image_height': image_height, 'crop_x1': None, 'crop_y1': None, 'crop_x2': None, 'crop_y2': None, 'error': None}, landmarks)
-        annotation = find_coco_annotation(image_path, image_path.parent.name)
+        annotation = find_coco_annotation(image_path, image_path.parent.name) # coco fallback
         if annotation is None:
             return ({'detection_success': False, 'extraction_method': 'failed_no_annotation', 'handedness': None, 'handedness_score': None, 'image_width': image_width, 'image_height': image_height, 'crop_x1': None, 'crop_y1': None, 'crop_x2': None, 'crop_y2': None, 'error': 'no_hand_detected_and_no_coco_bbox'}, None)
         bbox = annotation.get('bbox')
         if bbox is None or len(bbox) != 4:
             return ({'detection_success': False, 'extraction_method': 'failed_invalid_bbox', 'handedness': None, 'handedness_score': None, 'image_width': image_width, 'image_height': image_height, 'crop_x1': None, 'crop_y1': None, 'crop_x2': None, 'crop_y2': None, 'error': 'invalid_coco_bbox'}, None)
         x, y, w, h = map(float, bbox)
-        if w <= 0 or h <= 0:
+        if w <= 0 or h <= 0: 
             return ({'detection_success': False, 'extraction_method': 'failed_invalid_bbox', 'handedness': None, 'handedness_score': None, 'image_width': image_width, 'image_height': image_height, 'crop_x1': None, 'crop_y1': None, 'crop_x2': None, 'crop_y2': None, 'error': 'non_positive_coco_bbox'}, None)
-        padding = 0.15
+        padding = 0.15 # we're just expanding the box area before real crop
         x1 = max(0, int(np.floor(x - w * padding)))
         y1 = max(0, int(np.floor(y - h * padding)))
         x2 = min(image_width, int(np.ceil(x + w * (1.0 + padding))))
@@ -90,7 +94,7 @@ def extract_landmarks(image_path: Path):
         if x2 <= x1 or y2 <= y1:
             return ({'detection_success': False, 'extraction_method': 'failed_invalid_crop', 'handedness': None, 'handedness_score': None, 'image_width': image_width, 'image_height': image_height, 'crop_x1': x1, 'crop_y1': y1, 'crop_x2': x2, 'crop_y2': y2, 'error': 'invalid_crop_dimensions'}, None)
         crop = image_np[y1:y2, x1:x2]
-        crop_result = mediapipe_detect(crop)
+        crop_result = mediapipe_detect(crop) # now you shall call mediapipe again
         crop_landmarks = landmarks_from_result(crop_result)
         if crop_landmarks is None:
             return ({'detection_success': False, 'extraction_method': 'full_and_crop_failed', 'handedness': None, 'handedness_score': None, 'image_width': image_width, 'image_height': image_height, 'crop_x1': x1, 'crop_y1': y1, 'crop_x2': x2, 'crop_y2': y2, 'error': 'no_hand_detected'}, None)
@@ -108,23 +112,23 @@ def extract_landmarks(image_path: Path):
         return ({'detection_success': True, 'extraction_method': 'coco_crop', 'handedness': handedness, 'handedness_score': handedness_score, 'image_width': image_width, 'image_height': image_height, 'crop_x1': x1, 'crop_y1': y1, 'crop_x2': x2, 'crop_y2': y2, 'error': None}, original_landmarks)
     except Exception as exc:
         return ({'detection_success': False, 'extraction_method': 'exception', 'handedness': None, 'handedness_score': None, 'image_width': None, 'image_height': None, 'crop_x1': None, 'crop_y1': None, 'crop_x2': None, 'crop_y2': None, 'error': f'{type(exc).__name__}: {exc}'}, None)
-records = []
+records = [] # now we process the whole dataset
 total_start = time.perf_counter()
 for split, table in split_tables.items():
-    print('=' * 70)
+    print('-' * 70)
     print(f'PROCESSING: {split.upper()}')
-    print('=' * 70)
+    print('-' * 70)
     split_start = time.perf_counter()
     success_count = 0
     failure_count = 0
     full_count = 0
     crop_count = 0
-    rows = table.to_dict(orient='records')
+    rows = table.to_dict(orient='records') # convert dataframe into rows
     for index, row in enumerate(rows, start=1):
         image_path = Path(row['path'])
         filename = image_path.name
         landmark_path = LANDMARK_ROOT / split / f'{image_path.stem}.npy'
-        metadata, landmarks = extract_landmarks(image_path)
+        metadata, landmarks = extract_landmarks(image_path) # ip-> image, op -> landmarks
         if landmarks is not None:
             np.save(landmark_path, landmarks)
             success_count += 1
@@ -145,9 +149,9 @@ metadata_path = LANDMARK_ROOT / 'metadata.csv'
 metadata_df.to_csv(metadata_path, index=False)
 total_elapsed = time.perf_counter() - total_start
 print()
-print('=' * 70)
+print('-' * 70)
 print('LANDMARK EXTRACTION COMPLETE')
-print('=' * 70)
+print('-' * 70)
 for split in ['train', 'val', 'test']:
     subset = metadata_df[metadata_df['split'] == split]
     successful = int(subset['detection_success'].sum())
@@ -168,9 +172,9 @@ print()
 if len(failed_df) == 0:
     print('All images produced valid 21×3 landmarks.')
 else:
-    print('=' * 70)
+    print('-' * 70)
     print('REMAINING FAILED DETECTIONS')
-    print('=' * 70)
+    print('-' * 70)
     display(failed_df[['split', 'filename', 'class', 'extraction_method', 'error']])
 print()
 print('Extraction method summary:')
