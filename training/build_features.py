@@ -11,14 +11,14 @@ FEATURE_ROOT.mkdir(parents=True, exist_ok=True)
 ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
 CONFIG_ROOT.mkdir(parents=True, exist_ok=True)
 CLASS_NAMES = ['Hello', 'IloveYou', 'No', 'Please', 'Thanks', 'Yes'] # current set of signs
-CLASS_TO_ID = {name: idx for idx, name in enumerate(CLASS_NAMES)}
-WRIST = 0
+CLASS_TO_ID = {name: idx for idx, name in enumerate(CLASS_NAMES)} # assign ids
+WRIST = 0 
 PALM_MCP = [5, 9, 13, 17]
 PALM_CENTER_POINTS = PALM_MCP
 FINGERTIPS = [4, 8, 12, 16, 20]
 ANGLE_TRIPLETS = [(0, 1, 2), (1, 2, 3), (2, 3, 4), (0, 5, 6), (5, 6, 7), (6, 7, 8), (0, 9, 10), (9, 10, 11), (10, 11, 12), (0, 13, 14), (13, 14, 15), (14, 15, 16), (0, 17, 18), (17, 18, 19), (18, 19, 20)]
 
-def safe_norm(vector):
+def safe_norm(vector): # euclidean length
     return np.linalg.norm(vector, axis=-1)
 
 def joint_angle(points, a, b, c):
@@ -146,9 +146,9 @@ classes_yaml = '# ISL Static Prototype\n# Class configuration\n\nclasses:\n  0: 
 classes_path = CONFIG_ROOT / 'classes.yaml'
 with open(classes_path, 'w') as f:
     f.write(classes_yaml)
-print('=' * 70)
+print('-' * 70)
 print('FEATURE ENGINEERING COMPLETE')
-print('=' * 70)
+print('-' * 70)
 for split, stats in feature_stats.items():
     print(f'\n{split.upper()}')
     print(f"  samples:        {stats['samples']}")
